@@ -269,8 +269,9 @@ static void on_mouse_down(SDL_MouseButtonEvent *b) {
             int left = -1;
             for (int i = 1; i < A.ncols_vis; i++)
                 if (A.cols_vis[i] == e) left = A.cols_vis[i - 1];
-            if (left > COL_NAME) { A.drag = DRAG_COL; A.drag_col = left; A.drag_start = x; A.drag_off = A.colw[left]; }
-            else if (left == COL_NAME) { A.drag = DRAG_COL; A.drag_col = e; A.drag_start = x; A.drag_off = -A.colw[e]; } // name: shrink the next
+            // the line moves with the pointer: what the column on its left gains, the one on its right gives (Name,
+            // which takes the room the others leave, follows by itself)
+            if (left >= 0) { A.drag = DRAG_COL; A.drag_col = left; A.drag_col2 = e; A.drag_start = x; A.drag_w1 = A.colw[left]; A.drag_w2 = A.colw[e]; A.drag_others = A.col_others; }
             return;
         }
         int c = header_col_at(x);
@@ -323,12 +324,16 @@ static void on_mouse_motion(SDL_MouseMotionEvent *m) {
     switch (A.drag) {
     case DRAG_SIDEBAR: A.side_w = x / A.scale; layout(); A.redraw = true; return;
     case DRAG_INSPECTOR: A.insp_w = ((f32)A.W - x) / A.scale; layout(); A.redraw = true; return;
-    case DRAG_COL:
-        if (A.drag_off >= 0) A.colw[A.drag_col] = CLAMP(A.drag_off + (x - A.drag_start) / A.scale, 60.f, 600.f);
-        else A.colw[A.drag_col] = CLAMP(-A.drag_off - (x - A.drag_start) / A.scale, 60.f, 600.f);
+    case DRAG_COL: {
+        f32 d = (x - A.drag_start) / A.scale, lo = 60.f;
+        if (A.drag_col == COL_NAME) d = CLAMP(d, A.drag_others - A.col_room, A.drag_w2 - lo); // (Name keeps its minimum)
+        else d = CLAMP(d, lo - A.drag_w1, A.drag_w2 - lo);
+        if (A.drag_col != COL_NAME) A.colw[A.drag_col] = A.drag_w1 + d;
+        A.colw[A.drag_col2] = A.drag_w2 - d;
         layout();
         A.redraw = true;
         return;
+    }
     case DRAG_SCROLL: {
         f32 ty, th = scroll_thumb(&ty);
         f32 room = A.r_track.h - th;

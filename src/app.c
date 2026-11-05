@@ -283,7 +283,8 @@ static struct {
     Rect pal_r, pal_list;
 
     // dragging
-    int drag, drag_col;
+    int drag, drag_col, drag_col2; // column drag: the columns left and right of the line held
+    f32 drag_w1, drag_w2, drag_others, col_k, col_room, col_others; // widths when it started; room for non-Name columns
     f32 drag_off, drag_start;
 
     // settings
@@ -365,12 +366,14 @@ static void layout(void) {
     f32 x0 = A.r_list.x + roundf(S(8)), x1 = A.r_track.x - roundf(S(4));
     f32 others = 0, avail = x1 - x0, namemin = MAX(roundf(S(160)), roundf(avail * 0.34f));
     for (int i = 1; i < A.ncols_vis; i++) others += roundf(S(A.colw[A.cols_vis[i]]));
-    while (A.ncols_vis > 1 && others * 0.7f > avail - namemin) { // too narrow: the last columns go before the rest squeeze
+    while (A.ncols_vis > 1 && others > avail - namemin) { // too narrow: the last columns go (widths are never squeezed)
         others -= roundf(S(A.colw[A.cols_vis[A.ncols_vis - 1]]));
         A.ncols_vis--;
     }
-    f32 k = others > avail - namemin && others > 0 ? MAX(0.f, avail - namemin) / others : 1.f; // narrow: all shrink
-    f32 namew = MAX(namemin, avail - others * k);
+    f32 k = 1.f, namew = MAX(namemin, avail - others);
+    A.col_k = 1.f;
+    A.col_room = (avail - namemin) / A.scale; // what the other columns may take in all (column drags stay inside it)
+    A.col_others = others / A.scale;
     f32 x = x0;
     for (int i = 0; i < A.ncols_vis; i++) {
         int c = A.cols_vis[i];

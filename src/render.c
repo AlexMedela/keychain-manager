@@ -257,7 +257,7 @@ static void draw_header(void) {
         draw_text_fit(f, tx, ty, x1 - tx - S(4), label, len, C(active ? COL_TEXT : COL_TEXT_DIM), 0);
         if (active) draw_chevron(MIN(tx + tw + S(9), x1 - S(8)), h.y + h.h * 0.5f, S(7), A.sort_desc ? 3 : 2, MAX(1.f, S(1.3f)), C(COL_ACCENT));
         if (i > 0) {
-            bool eh = (A.drag == DRAG_COL && (A.drag_col == c || A.drag_col == A.cols_vis[i - 1])) ||
+            bool eh = (A.drag == DRAG_COL && A.drag_col2 == c) ||
                       (A.mouse_in && A.drag == DRAG_NONE && in_rect(h, A.mx, A.my) && header_edge_at(A.mx) == c);
             draw_rect(x0, h.y + S(eh ? 5 : 9), 1, h.h - S(eh ? 10 : 18), eh ? C(COL_ACCENT) : C(COL_BORDER));
         }

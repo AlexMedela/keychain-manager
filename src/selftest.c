@@ -417,6 +417,32 @@ static void st_ui(void) {
     sheet_open_name(-1);
     SHOT("new-keyring");
     sheet_close();
+    // resizing a column: the line held follows the pointer exactly (both a line between two columns and Name's)
+    layout();
+    for (int pass = 0; pass < 2; pass++) {
+        int right = pass == 0 ? A.cols_vis[2] : A.cols_vis[1]; // line left of the 3rd column (Account|Where), then Name|Account
+        f32 lx = A.colx0[right], hy = A.r_header.y + A.r_header.h * 0.5f, d = (pass ? 1 : -1) * roundf(S(30)); // (Name: wider; it may sit at its minimum)
+        f32 dens = SDL_GetWindowPixelDensity(A.win);
+        SDL_Event e;
+        SDL_zero(e);
+        e.type = SDL_EVENT_MOUSE_BUTTON_DOWN;
+        e.button.button = SDL_BUTTON_LEFT;
+        e.button.clicks = 1;
+        e.button.x = lx / dens;
+        e.button.y = hy / dens;
+        handle_event(&e);
+        SDL_zero(e);
+        e.type = SDL_EVENT_MOUSE_MOTION;
+        e.motion.x = (lx + d) / dens;
+        e.motion.y = hy / dens;
+        handle_event(&e);
+        SDL_zero(e);
+        e.type = SDL_EVENT_MOUSE_BUTTON_UP;
+        e.button.button = SDL_BUTTON_LEFT;
+        handle_event(&e);
+        layout();
+        CHECK(fabsf(A.colx0[right] - (lx + d)) <= 1.5f, "column line %d follows the pointer (%.1f -> %.1f, wanted %.1f)", pass, lx, A.colx0[right], lx + d);
+    }
     // small windows: the list keeps room, the details panel fits (narrower) or steps aside, and scrolls
     int ow = A.W, oh = A.H;
     A.insp_on = true;
