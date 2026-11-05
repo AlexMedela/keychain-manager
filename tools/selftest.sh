@@ -22,6 +22,13 @@ exec dbus-run-session -- sh -c '
     mkdir -p "$HOME" "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_RUNTIME_DIR"
     chmod 700 "$XDG_RUNTIME_DIR"
     printf test | gnome-keyring-daemon --unlock --components=secrets >/dev/null
+    # wait until it owns the name: a request before that would start a second, empty daemon (bus activation)
+    i=0
+    until dbus-send --session --print-reply --dest=org.freedesktop.DBus /org/freedesktop/DBus \
+          org.freedesktop.DBus.NameHasOwner string:org.freedesktop.secrets 2>/dev/null | grep -q "boolean true"; do
+        i=$((i + 1)); [ "$i" -gt 100 ] && { echo "gnome-keyring did not start"; exit 1; }
+        sleep 0.05
+    done
     sh "$KM_HERE/mkitems.sh" "${KM_ITEMS:-0}"
     export KM_TEST_BUS="$DBUS_SESSION_BUS_ADDRESS"
     "$KM_BIN" "$@"
