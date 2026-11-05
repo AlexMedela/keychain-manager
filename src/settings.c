@@ -26,6 +26,7 @@ static void settings_defaults(void) {
     A.insp_on = true;
     A.insp_w = 340;
     for (int c = 0; c < COL_COUNT; c++) { A.colw[c] = g_coldef[c].def_w; A.col_on[c] = c != COL_CREATED && c != COL_KEYRING; }
+    A.colw[COL_NAME] = 160;
     A.sort_col = COL_NAME;
     A.sort_desc = false;
     A.clip_secs = 30;
@@ -148,7 +149,8 @@ static void settings_load(void) {
         else if (!strcmp(k, "sort")) {
             for (int c = 0; c < COL_COUNT; c++)
                 if (!strncmp(v, g_coldef[c].key, strlen(g_coldef[c].key))) { A.sort_col = c; A.sort_desc = strstr(v, ":desc") != NULL; }
-        } else if (!strcmp(k, "columns")) { // account:180,where:200 (shown columns + widths; name is always there)
+        } else if (!strcmp(k, "name_width")) A.colw[COL_NAME] = CLAMP((f32)atof(v), 120.f, 1200.f);
+        else if (!strcmp(k, "columns")) { // account:180,where:200 (shown columns + widths; name is always there)
             for (int c = COL_ACCOUNT; c < COL_COUNT; c++) A.col_on[c] = false;
             char buf[512];
             snprintf(buf, sizeof buf, "%s", v);
@@ -197,6 +199,7 @@ static void settings_save(void) {
     fprintf(f, "clear_clipboard=%d\nidle_lock=%d\nalt_rows=%d\nsmooth_scroll=%d\ntitle_bar=%s\nrenderer=%s\n", A.clip_secs,
             A.idle_lock_min, A.alt_rows, A.smooth_scroll,
             A.title_bar == TITLEBAR_APP ? "app" : A.title_bar == TITLEBAR_SYSTEM ? "system" : "auto", A.renderer);
+    fprintf(f, "name_width=%.0f\n", A.colw[COL_NAME]);
     fprintf(f, "sort=%s%s\ncolumns=", g_coldef[A.sort_col].key, A.sort_desc ? ":desc" : "");
     bool first = true;
     for (int c = COL_ACCOUNT; c < COL_COUNT; c++) {

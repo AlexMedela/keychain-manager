@@ -419,9 +419,9 @@ static void st_ui(void) {
     sheet_close();
     // resizing a column: the line held follows the pointer exactly (both a line between two columns and Name's)
     layout();
-    for (int pass = 0; pass < 2; pass++) {
+    for (int pass = 0; pass < 3; pass++) {
         int right = pass == 0 ? A.cols_vis[2] : A.cols_vis[1]; // line left of the 3rd column (Account|Where), then Name|Account
-        f32 lx = A.colx0[right], hy = A.r_header.y + A.r_header.h * 0.5f, d = (pass ? 1 : -1) * roundf(S(30)); // (Name: wider; it may sit at its minimum)
+        f32 lx = A.colx0[right], hy = A.r_header.y + A.r_header.h * 0.5f, d = (pass == 1 ? 1 : -1) * roundf(S(30)); // (Name: wider, then narrower)
         f32 dens = SDL_GetWindowPixelDensity(A.win);
         SDL_Event e;
         SDL_zero(e);
@@ -443,6 +443,41 @@ static void st_ui(void) {
         layout();
         CHECK(fabsf(A.colx0[right] - (lx + d)) <= 1.5f, "column line %d follows the pointer (%.1f -> %.1f, wanted %.1f)", pass, lx, A.colx0[right], lx + d);
     }
+    { // dragging in small steps: no column comes or goes while the line moves (all columns on: some don't fit)
+        bool was[COL_COUNT];
+        for (int c = 0; c < COL_COUNT; c++) { was[c] = A.col_on[c]; A.col_on[c] = true; }
+        layout();
+        CHECK(A.colx1[A.cols_vis[A.ncols_vis - 1]] > A.r_track.x, "with every column on, the last ones run past the edge");
+        int right = A.cols_vis[1], n0 = A.ncols_vis;
+        f32 lx = A.colx0[right], hy = A.r_header.y + A.r_header.h * 0.5f, dens = SDL_GetWindowPixelDensity(A.win);
+        SDL_Event e;
+        SDL_zero(e);
+        e.type = SDL_EVENT_MOUSE_BUTTON_DOWN;
+        e.button.button = SDL_BUTTON_LEFT;
+        e.button.clicks = 1;
+        e.button.x = lx / dens;
+        e.button.y = hy / dens;
+        handle_event(&e);
+        bool same = true;
+        for (int step = -120; step <= 120; step += 3) {
+            SDL_zero(e);
+            e.type = SDL_EVENT_MOUSE_MOTION;
+            e.motion.x = (lx + S(step)) / dens;
+            e.motion.y = hy / dens;
+            handle_event(&e);
+            same &= A.ncols_vis == n0;
+        }
+        SDL_zero(e);
+        e.type = SDL_EVENT_MOUSE_BUTTON_UP;
+        e.button.button = SDL_BUTTON_LEFT;
+        handle_event(&e);
+        layout();
+        CHECK(same && A.ncols_vis == n0 && n0 == COL_COUNT, "no column comes or goes while a line is dragged back and forth");
+        for (int c = 0; c < COL_COUNT; c++) A.col_on[c] = was[c];
+        for (int c = 0; c < COL_COUNT; c++) A.colw[c] = g_coldef[c].def_w;
+        A.colw[COL_NAME] = 160;
+        layout();
+    }
     // small windows: the list keeps room, the details panel fits (narrower) or steps aside, and scrolls
     int ow = A.W, oh = A.H;
     A.insp_on = true;
@@ -455,6 +490,9 @@ static void st_ui(void) {
     A.W = (int)roundf(S(560));
     layout();
     CHECK(A.r_insp.w == 0 && A.insp_squeezed && A.r_list.w >= S(280) - 1, "too narrow: the panel steps aside");
+    int nv = A.ncols_vis;
+    for (int w = 560; w <= 1400; w += 7) { A.W = (int)roundf(S(w)); layout(); nv = A.ncols_vis == nv ? nv : -1; }
+    CHECK(nv >= 0, "resizing the window never makes columns come or go");
     A.W = ow;
     A.H = oh;
     layout();
