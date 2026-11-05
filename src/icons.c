@@ -23,7 +23,13 @@ static const char g_logo_svg[] =
 static const char g_logo_small_svg[] =
     "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"624\" height=\"456\" viewBox=\"0 0 624 456\"><defs><linearGradient id=\"b\" x1=\"287\" y1=\"189\" x2=\"575\" y2=\"331\" gradientUnits=\"userSpaceOnUse\"><stop offset=\"0\" stop-color=\"#2566DE\"/><stop offset=\"1\" stop-color=\"#193C96\"/></linearGradient><linearGradient id=\"f\" x1=\"48\" y1=\"94\" x2=\"316\" y2=\"362\" gradientUnits=\"userSpaceOnUse\"><stop offset=\"0\" stop-color=\"#4CC8FF\"/><stop offset=\"1\" stop-color=\"#2D7BE8\"/></linearGradient></defs><rect x=\"287\" y=\"189\" width=\"288\" height=\"78\" rx=\"16\" fill=\"url(#b)\"/><rect x=\"513\" y=\"225\" width=\"50\" height=\"106\" rx=\"14\" fill=\"url(#b)\"/><rect x=\"437\" y=\"225\" width=\"50\" height=\"78\" rx=\"14\" fill=\"url(#b)\"/><path d=\"M287 189H324.2A134 134 0 0 1 324.2 267H287Z\" fill=\"#0A1E5C\" opacity=\"0.08\"/><path d=\"M287 189H319.2A134 134 0 0 1 319.2 267H287Z\" fill=\"#0A1E5C\" opacity=\"0.12\"/><path d=\"M287 189H315.2A134 134 0 0 1 315.2 267H287Z\" fill=\"#0A1E5C\" opacity=\"0.18\"/><circle cx=\"182\" cy=\"228\" r=\"134\" fill=\"url(#f)\"/><circle cx=\"182\" cy=\"228\" r=\"62.5\" fill=\"#FFFFFF\"/></svg>";
 
+#define APPICON_BASE 0x10000 // apps' own icons (appicons.c): APPICON_BASE + slot
+static u8 *appicon_raster(int id, int w, int h);
+
 static NSVGimage *g_icon_img[ICON_ID_LIMIT]; // parsed lazily
+
+// The logo and the sidebar's own icons are drawn in the logo's blues: they follow the accent colour like it.
+static bool icon_follows_accent(int id) { return id == ICON_LOGO || id == ICON_LOGO_SMALL || id == ICON_ALL_ITEMS || id == ICON_KEYRING; }
 static NSVGrasterizer *g_rast;
 
 static int icon_find(const char *name) {
@@ -87,7 +93,7 @@ static NSVGimage *icon_image(int id) {
     if (!*slot) {
         const char *src = id == ICON_LOGO ? g_logo_svg : id == ICON_LOGO_SMALL ? g_logo_small_svg : g_icon_svg[id];
         char *copy = strdup(src); // nsvgParse modifies its input
-        if (id == ICON_LOGO || id == ICON_LOGO_SMALL) logo_recolor(copy, g_logo_accent = COL_ACCENT);
+        if (icon_follows_accent(id)) logo_recolor(copy, g_logo_accent = COL_ACCENT);
         *slot = nsvgParse(copy, "px", 96.0f);
         free(copy);
     }
@@ -96,6 +102,7 @@ static NSVGimage *icon_image(int id) {
 
 // RGBA pixels of icon id fitted (centred) into a w x h box; caller frees.
 static u8 *icon_raster(int id, int w, int h) {
+    if (id >= APPICON_BASE) return appicon_raster(id, w, h);
     NSVGimage *img = icon_image(id);
     if (!img || img->width <= 0 || img->height <= 0) return NULL;
     if (!g_rast) g_rast = nsvgCreateRasterizer();
@@ -110,7 +117,7 @@ static IconSlot g_icon_cache[256];
 // g_icon_cache_n lives in font.c (reset together with the atlas)
 
 static Glyph *icon_glyph(int id, int px) {
-    if (id < 0 || id >= ICON_ID_LIMIT || px <= 0 || px > 256) return NULL;
+    if (id < 0 || (id >= ICON_ID_LIMIT && id < APPICON_BASE) || px <= 0 || px > 256) return NULL;
     for (int i = 0; i < g_icon_cache_n; i++)
         if (g_icon_cache[i].id == id && g_icon_cache[i].px == px) return &g_icon_cache[i].g;
     if (g_icon_cache_n >= (int)ARRAY_COUNT(g_icon_cache)) g_icon_cache_n = 0; // crude eviction (atlas keeps the pixels)
@@ -143,10 +150,18 @@ static bool draw_icon_id(f32 x, f32 y, f32 s, int id, f32 alpha) {
 static bool g_logo_changed; // the window icon should be rebuilt (app.c)
 
 static void icons_sync_theme(void) {
-    if ((g_icon_img[ICON_LOGO] || g_icon_img[ICON_LOGO_SMALL]) && g_logo_accent != COL_ACCENT) {
-        for (int id = ICON_LOGO; id <= ICON_LOGO_SMALL; id++)
-            if (g_icon_img[id]) { nsvgDelete(g_icon_img[id]); g_icon_img[id] = NULL; }
+    bool any = false;
+    for (int id = 0; id < ICON_ID_LIMIT; id++) any |= icon_follows_accent(id) && g_icon_img[id];
+    if (any && g_logo_accent != COL_ACCENT) {
+        for (int id = 0; id < ICON_ID_LIMIT; id++)
+            if (icon_follows_accent(id) && g_icon_img[id]) { nsvgDelete(g_icon_img[id]); g_icon_img[id] = NULL; }
         atlas_reset();
         g_logo_changed = true;
     }
+}
+
+// A white icon (the padlocks) tinted with c, centred on (cx, cy) in an s-pixel box.
+static void draw_icon_tinted(f32 cx, f32 cy, f32 s, int id, Color c) {
+    Glyph *g = icon_glyph(id, (int)roundf(s));
+    if (g) draw_glyph(g, roundf(cx - g->w * 0.5f), roundf(cy - g->h * 0.5f), c);
 }

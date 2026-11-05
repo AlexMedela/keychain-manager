@@ -17,6 +17,8 @@ put "Unlock password for: alex@laptop" "ssh-pass" xdg:schema org.freedesktop.Sec
 put "docker-credential-secretservice" "dckr_pat_demo" xdg:schema org.freedesktop.Secret.Generic label docker server https://index.docker.io/v1/ username alex
 put "Visual Studio Code" "vsc-token" xdg:schema org.freedesktop.Secret.Generic application vscode service vscodevscode.github-authentication account github.auth
 put "Password for 'alex' on 'pypi'" "pypi-AgEIc" xdg:schema org.freedesktop.Secret.Generic application "Python keyring library" service pypi username alex
+put "Brave Safe Storage" "YnJhdmUtc3RvcmFnZQ" xdg:schema chrome_libsecret_os_crypt_password_v2 application brave
+put "Password for 'me' on 'Proton'" "proton-demo" xdg:schema org.freedesktop.Secret.Generic application "Python keyring library" service Proton username me
 put "Notes: Recovery codes" "1234-5678 9012-3456" xdg:schema org.gnome.keyring.Note
 i=0
 while [ "$i" -lt "$n" ]; do

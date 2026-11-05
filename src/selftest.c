@@ -114,6 +114,18 @@ static void st_model(void) {
     CHECK(py && py->icon == ICON_PYTHON, "python keyring");
     Item *note = st_find_label("Notes: Recovery codes");
     CHECK(note && !strcmp(note->kind, "Note"), "note");
+    // which app saved it, and which desktop entry is that app
+    Item *bk = st_find_label("Brave Safe Storage"), *pm = st_find_label("Password for 'me' on 'Proton'");
+    CHECK(bk && !strcmp(bk->app_key, "brave"), "app of a browser key");
+    CHECK(pm && !strcmp(pm->app_key, "Proton"), "app of a Python keyring item (its service)");
+    CHECK(py && !strcmp(py->app_key, "pypi"), "a name-like service is tried as an app (no match: the Python icon stays)");
+    DeskEnt mail = {.id = "Proton Mail", .name = "Proton Mail", .first = "Proton", .exec = "proton-mail", .icon = "proton-mail"};
+    DeskEnt tricks = {.id = "protontricks", .name = "Protontricks", .first = "Protontricks", .exec = "protontricks", .icon = "x"};
+    DeskEnt brave = {.id = "brave-browser", .name = "Brave Web Browser", .first = "Brave", .exec = "brave", .icon = "brave-browser"};
+    DeskEnt chromium = {.id = "chromium", .name = "Chromium", .first = "Chromium", .exec = "chromium", .icon = "chromium"};
+    CHECK(desk_score("proton", &mail) > desk_score("proton", &tricks), "\"Proton\" is Proton Mail, not Protontricks");
+    CHECK(desk_score("brave", &brave) >= 85 && desk_score("brave", &chromium) == 0, "\"brave\" is Brave");
+    CHECK(desk_score("chromium", &chromium) == 100, "\"chromium\" is Chromium");
     // a streamed reload's placeholders keep what an item already shows
     if (gh) {
         ItemInfo ii = {0};
@@ -151,7 +163,7 @@ static void st_model(void) {
     run_command(CMD_SORT, COL_ACCOUNT);
     CHECK(A.sort_desc, "second click: descending");
     run_command(CMD_SORT, COL_NAME);
-    CHECK(!strcmp(A.view[0]->label, "Chrome Safe Storage"), "by name (natural, case-insensitive): %s", A.view[0]->label);
+    CHECK(!strcmp(A.view[0]->label, "Brave Safe Storage"), "by name (natural, case-insensitive): %s", A.view[0]->label);
     // palette: fuzzy item search
     palette_open(false);
     te_set(&A.pal_te, "gthb", 4, 4);

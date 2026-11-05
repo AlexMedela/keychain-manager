@@ -45,15 +45,10 @@ static void draw_copy_icon(f32 x, f32 y, f32 s, Color c, u32 bg) {
     draw_rrect_outline(fx, fy, w, h, r, t, c);
 }
 
-// A padlock: closed, or open (shackle lifted to one side).
+// A padlock, closed or open, in colour c (bg: unused, kept for the callers' layout).
 static void draw_lock_icon(f32 cx, f32 cy, f32 s, Color c, bool open, u32 bg) {
-    f32 t = MAX(1.f, roundf(s * 0.13f)), bw = roundf(s * 0.72f), bh = roundf(s * 0.5f);
-    f32 bx = roundf(cx - bw * 0.5f), by = roundf(cy - s * 0.5f + s * 0.46f);
-    f32 sw = roundf(bw * 0.62f), sx = roundf(cx - sw * 0.5f) + (open ? roundf(s * 0.26f) : 0), sy = roundf(cy - s * 0.5f) - (open ? roundf(s * 0.08f) : 0);
-    draw_rrect_outline(sx, sy, sw, (by - sy) + t * 2, sw * 0.5f, t, c);
-    draw_rrect(bx, by, bw, bh, MAX(1.f, s * 0.08f), c);
-    f32 kr = MAX(1.f, roundf(s * 0.07f));
-    draw_rrect(roundf(cx - kr), roundf(by + bh * 0.5f - kr), kr * 2, kr * 2, kr, C(bg));
+    (void)bg;
+    draw_icon_tinted(cx, cy, roundf(s * 1.15f), open ? ICON_LOCK_OPEN : ICON_LOCK_CLOSED, c);
 }
 
 static void te_draw(TextEdit *t, Font *f, Rect r, f32 pad, Color tc, bool focused) {

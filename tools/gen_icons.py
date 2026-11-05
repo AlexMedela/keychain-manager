@@ -8,7 +8,7 @@ root = os.path.join(here, "..")
 ICONS = [("key", "m"), ("lock", "m"), ("http", "m"), ("console", "m"), ("git", "m"), ("docker", "m"),
          ("vscode", "m"), ("database", "m"), ("certificate", "m"), ("android", "m"), ("nodejs", "m"),
          ("python", "m"), ("folder-secure", "m"), ("keyring", "o"), ("wifi", "o"), ("mail", "o"), ("app", "o"),
-         ("browser", "o")]
+         ("browser", "o"), ("all-items", "o"), ("lock-closed", "o"), ("lock-open", "o")]
 
 def load(path):
     svg = open(path, encoding="utf-8").read()

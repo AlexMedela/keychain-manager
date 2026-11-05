@@ -41,5 +41,6 @@ tools/selftest.sh -- --screenshot out.bmp         # one frame, headless
 
 ## Third-party
 - [nanosvg](https://github.com/memononen/nanosvg) (zlib licence) - SVG icons.
+- [stb_image](https://github.com/nothings/stb) (public domain / MIT) - PNG icons of apps.
 - [Material Icon Theme](https://github.com/material-extensions/vscode-material-icon-theme) (MIT) - item icons.
 - The look, fonts code and colour themes are shared with [File Explorer](https://github.com/AlexMedela/file-explorer).

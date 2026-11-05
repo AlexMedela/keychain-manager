@@ -20,7 +20,7 @@ static void draw_brand(void) {
 static void draw_window_controls(void) {
     if (!A.csd) return;
     bool max = window_maximized();
-    f32 lt = MAX(1.f, roundf(S(1))), is = roundf(S(10));
+    f32 lt = MAX(1.f, roundf(S(1))), is = roundf(S(11));
     for (int i = 0; i < 3; i++) {
         Rect b = wctl_button(i);
         bool hover = A.mouse_in && A.drag == DRAG_NONE && in_rect(b, A.mx, A.my);
@@ -61,13 +61,19 @@ static void draw_icon_button(Rect r, int kind, bool on) {
     Color ic = C(hv ? COL_TEXT : COL_TEXT2);
     f32 cx = roundf(r.x + r.w * 0.5f), cy = roundf(r.y + r.h * 0.5f);
     if (kind == 0) draw_plus(cx, cy, S(12), MAX(1.f, S(1.6f)), ic);
-    else if (kind == 1) draw_lock_icon(cx, cy, S(15), ic, false, hv || on ? (on ? COL_CONTROL : COL_CONTROL_HOVER) : COL_TABBAR);
+    else if (kind == 1) draw_lock_icon(cx, cy, S(16), ic, false, hv || on ? (on ? COL_CONTROL : COL_CONTROL_HOVER) : COL_TABBAR);
     else { // details panel: a window with its right part split off
         f32 w = roundf(S(16)), h = roundf(S(13)), x0 = roundf(cx - w * 0.5f), y0 = roundf(cy - h * 0.5f), t = MAX(1.f, roundf(S(1.3f)));
         draw_rrect_outline(x0, y0, w, h, S(2.5f), t, ic);
         draw_rect(roundf(x0 + w * 0.62f), y0 + 1, t, h - 2, ic);
         if (on) draw_rect(roundf(x0 + w * 0.62f), y0 + 1, roundf(w * 0.38f) - 1, h - 2, ic);
     }
+}
+
+// An item's icon: the app that saved it when its icon is installed, else its kind's.
+static void draw_item_icon(const Item *it, f32 x, f32 y, f32 s, f32 alpha) {
+    int id = appicon_id(it->app_key);
+    if (id < 0 || !draw_icon_id(x, y, s, id, alpha)) draw_icon_id(x, y, s, it->icon, alpha);
 }
 
 // --- top bar: where you are, search, buttons --------------------------------------------------
@@ -82,7 +88,7 @@ static void draw_topbar(void) {
     if (cr.w > S(40)) {
         const char *name = A.side_sel >= 0 ? coll_label(A.side_sel) : "All items";
         f32 is = roundf(S(18)), iy = roundf(cr.y + (cr.h - is) * 0.5f);
-        draw_icon_id(cr.x, iy, is, A.side_sel >= 0 ? ICON_KEYRING : ICON_KEY, 1.f);
+        draw_icon_id(cr.x, iy, is, A.side_sel >= 0 ? ICON_KEYRING : ICON_ALL_ITEMS, 1.f);
         f32 tx = cr.x + is + roundf(S(9));
         f32 nw = MIN(text_width(f, name, (int)strlen(name)), cr.x + cr.w - tx - S(60));
         draw_text_fit(f, tx, text_y(f, cr.y, cr.h), nw + 1, name, (int)strlen(name), C(COL_TEXT), 0);
@@ -159,11 +165,11 @@ static void draw_sidebar(void) {
             draw_rrect(r.x, r.y + 1, r.w, r.h - 2, S(6), C(COL_ACCENT));
             draw_clip_pop(ac);
         }
-        f32 is = roundf(S(16)), ix = roundf(r.x + S(12)), iy = roundf(r.y + (r.h - is) * 0.5f);
+        f32 is = roundf(S(18)), ix = roundf(r.x + S(11)), iy = roundf(r.y + (r.h - is) * 0.5f);
         const char *label;
         int count;
         bool locked = false, def = false;
-        if (row->kind == SR_ALL) { label = "All items"; count = total; draw_icon_id(ix, iy, is, ICON_KEY, 1.f); }
+        if (row->kind == SR_ALL) { label = "All items"; count = total; draw_icon_id(ix, iy, is, ICON_ALL_ITEMS, 1.f); }
         else {
             Coll *c = &A.colls[row->coll];
             label = coll_label(row->coll);
@@ -315,7 +321,7 @@ static void draw_list(void) {
             f32 x0 = A.colx0[c], x1 = A.colx1[c];
             if (c == COL_NAME) {
                 f32 ix = x0 + S(6), iy = roundf(y + (rh - is) * 0.5f);
-                draw_icon_id(ix, iy, is, it->icon, it->locked ? 0.55f : 1.f);
+                draw_item_icon(it, ix, iy, is, it->locked ? 0.55f : 1.f);
                 if (it->locked) draw_lock_badge(ix, iy, is, rowbg);
                 f32 tx = x0 + S(32);
                 const char *lab = it->pending ? "\xE2\x80\xA6" : it->label[0] ? it->label : "(no name)";
@@ -457,7 +463,7 @@ static void draw_inspector(void) {
     }
     // icon, name, kind
     f32 is = roundf(S(40));
-    draw_icon_id(x, y, is, it->icon, it->locked ? 0.6f : 1.f);
+    draw_item_icon(it, x, y, is, it->locked ? 0.6f : 1.f);
     f32 tx = x + is + S(14);
     const char *lab = it->label[0] ? it->label : "(no name)";
     int st[3], ln[3];
@@ -795,7 +801,7 @@ static void draw_palette(void) {
             key_label_for(p->cmd, hbuf, sizeof hbuf);
             hint = hbuf;
         } else {
-            draw_icon_id(ix, iy, is, p->item->icon, p->item->locked ? 0.55f : 1.f);
+            draw_item_icon(p->item, ix, iy, is, p->item->locked ? 0.55f : 1.f);
             snprintf(hbuf, sizeof hbuf, "%.80s", coll_label(p->item->coll));
             hint = hbuf;
         }

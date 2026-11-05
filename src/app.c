@@ -150,6 +150,7 @@ typedef struct Item {
     int coll; // index in A.colls (-1: none known)
     // derived from the schema and attributes (model.c)
     char account[128], where[192], kind[64];
+    char app_key[96]; // the app that saved it ("brave", "Proton"): its own icon, when installed (appicons.c)
     int icon;
     char *hay; // lower-case search text
 } Item;
@@ -312,6 +313,7 @@ static void on_secret(SsEvent *ev);
 static void layout(void);
 
 #include "model.c"
+#include "appicons.c"
 
 // --- layout ----------------------------------------------------------------
 
@@ -327,7 +329,7 @@ static void layout(void) {
     A.r_status = (Rect){0, H - status, W, status};
     A.r_top = (Rect){sw, 0, W - sw, top};
     f32 wctl = A.csd ? roundf(S(46)) * 3 : 0;
-    A.r_wctl = (Rect){W - wctl, 0, wctl, roundf(S(34))};
+    A.r_wctl = (Rect){W - wctl, 0, wctl, top - 1}; // (as tall as the bar they sit on)
     f32 bs = roundf(S(30)), by = roundf((top - bs) * 0.5f), bx = W - wctl - S(10) - bs;
     A.r_btn_insp = (Rect){bx, by, bs, bs};
     bx -= bs + roundf(S(4));
@@ -1172,7 +1174,7 @@ static void frame(void) {
         if (attempt == 0 || !atlas_grow()) atlas_reset();
     }
     A.frame_ms = (f32)((now_ns() - t0) / 1e6);
-    if (A.screenshot && A.loaded && !A.loading && A.ss_state != SS_CONNECTING && !g_atlas_full && ++A.screenshot_frames >= 3) {
+    if (A.screenshot && A.loaded && !A.loading && !appicons_busy() && A.ss_state != SS_CONNECTING && !g_atlas_full && ++A.screenshot_frames >= 3) {
         SDL_Surface *s = SDL_RenderReadPixels(A.ren, NULL);
         if (s) {
             SDL_SaveBMP(s, A.screenshot);

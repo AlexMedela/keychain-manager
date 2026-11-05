@@ -12,6 +12,7 @@ install -Dm644 packaging/dev.keychainmanager.svg "$DEST$PREFIX/share/icons/hicol
 install -Dm644 README.md "$DEST$PREFIX/share/doc/keychain-manager/README.md"
 for d in docs/*.md; do install -Dm644 "$d" "$DEST$PREFIX/share/doc/keychain-manager/$d"; done
 install -Dm644 LICENSE "$DEST$PREFIX/share/licenses/keychain-manager/LICENSE"
+install -Dm644 third_party/stb_image_LICENSE.txt "$DEST$PREFIX/share/licenses/keychain-manager/stb_image_LICENSE.txt"
 install -Dm644 third_party/nanosvg_LICENSE.txt "$DEST$PREFIX/share/licenses/keychain-manager/nanosvg_LICENSE.txt"
 install -Dm644 third_party/material-icons/LICENSE "$DEST$PREFIX/share/licenses/keychain-manager/material-icon-theme_LICENSE.txt"
 echo "installed to $DEST$PREFIX"

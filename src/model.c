@@ -164,6 +164,24 @@ static void item_derive(Item *it) {
         kind = kbuf;
         icon = ICON_APP;
     }
+    // the app that saved it, for its own icon: "application" (unless it's a library), Python keyring's "service" when
+    // that's a name rather than an address ("Proton"), or an app's reverse-DNS schema ("org.gnome.Evolution")
+    const char *ak = NULL;
+    char abuf[96] = "";
+    if (app && app[0] && !icontains(app, "keyring") && !icontains(app, "libsecret")) ak = app;
+    if (!ak) ak = attr_get(it, "app_id");
+    if (!ak) ak = attr_get(it, "appid");
+    const char *svc = attr_get(it, "service");
+    if (!ak && app && icontains(app, "python keyring") && svc && svc[0] && !strpbrk(svc, ".:/@")) ak = svc;
+    if (!ak && schema[0] && strncmp(schema, "org.freedesktop.", 16) && strncmp(schema, "org.gnome.keyring.", 18)) {
+        const char *d1 = strchr(schema, '.'), *d2 = d1 ? strchr(d1 + 1, '.') : NULL;
+        if (d2) {
+            const char *d3 = strchr(d2 + 1, '.');
+            snprintf(abuf, sizeof abuf, "%.*s", (int)(d3 ? d3 - schema : (long)strlen(schema)), schema);
+            ak = abuf;
+        }
+    }
+    snprintf(it->app_key, sizeof it->app_key, "%s", ak ? ak : "");
     snprintf(it->kind, sizeof it->kind, "%s", kind);
     snprintf(it->account, sizeof it->account, "%s", acc ? acc : "");
     snprintf(it->where, sizeof it->where, "%s", where ? where : "");
