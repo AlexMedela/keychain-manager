@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  # Portable build on the distros SDL 3.2+ is packaged for; warnings fail the job.
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [archlinux:latest, fedora:latest, debian:trixie, ubuntu:26.04]
+    runs-on: ubuntu-latest
+    container: ${{ matrix.image }}
+    steps:
+      - name: Install dependencies
+        run: |
+          case "${{ matrix.image }}" in
+            archlinux*) pacman -Syu --noconfirm --needed base-devel git pkgconf sdl3 freetype2 fontconfig dbus openssl ;;
+            fedora*)    dnf install -y gcc git pkgconf-pkg-config SDL3-devel freetype-devel fontconfig-devel dbus-devel openssl-devel ;;
+            debian*|ubuntu*)
+              apt-get update
+              DEBIAN_FRONTEND=noninteractive apt-get install -y build-essential git pkg-config libsdl3-dev libfreetype-dev libfontconfig-dev libdbus-1-dev libssl-dev ;;
+          esac
+      - uses: actions/checkout@v4
+      - name: Build (package mode)
+        run: |
+          ./build.sh package 2>&1 | tee build.log
+          if grep -q 'warning:' build.log; then echo "::error::compiler warnings"; exit 1; fi
+          ./build/keychain-manager --version
+
+  # Debug build (ASan/UBSan) + the headless self-tests, against a throwaway GNOME Keyring on a private session bus.
+  selftest:
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - name: Install dependencies
+        run: pacman -Syu --noconfirm --needed base-devel git pkgconf sdl3 freetype2 fontconfig dbus openssl gnome-keyring libsecret ttf-dejavu
+      - uses: actions/checkout@v4
+      - name: Build (debug)
+        run: ./build.sh debug
+      - name: Self-tests
+        run: |
+          useradd -m tester
+          chown -R tester .
+          su tester -c '
+            set -e
+            for t in model secret edit ui; do
+              echo "::group::selftest-$t"
+              tools/selftest.sh -- --selftest-$t || { echo "::error::selftest-$t failed"; exit 1; }
+              echo "::endgroup::"
+            done
+            KM_ITEMS=2000 tools/selftest.sh -- --bench'
+      - name: Screenshot
+        run: su tester -c 'tools/selftest.sh -- --screenshot shot.bmp'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: screenshot
+          path: shot.bmp

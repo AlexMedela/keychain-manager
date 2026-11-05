@@ -1,0 +1,40 @@
+# Maintainer: amedela
+# Keychain Manager from git. Inside a checkout of the repo it builds that checkout (your changes included);
+# on its own (e.g. copied elsewhere) it clones GitHub. KM_SRC=<dir> builds another checkout.
+#   git clone https://github.com/AlexMedela/keychain-manager && cd keychain-manager/packaging/arch && makepkg -si
+pkgname=keychain-manager-git
+pkgver=r1.0000000
+pkgrel=1
+pkgdesc="Keychain Manager - a fast, keyboard-first front end for your desktop's keyrings (Secret Service: GNOME Keyring, KWallet, KeePassXC)"
+arch=('x86_64' 'aarch64')
+url="https://github.com/AlexMedela/keychain-manager"
+license=('MIT')
+depends=('sdl3' 'freetype2' 'fontconfig' 'dbus' 'openssl' 'glibc'
+         'libdecor')  # title bar on GNOME Wayland (no server-side decorations there)
+makedepends=('git' 'gcc' 'pkgconf')
+optdepends=('gnome-keyring: a keyring service (GNOME and most other desktops)'
+            'kwallet: the keyring service of KDE Plasma (Secret Service compatible)'
+            'keepassxc: as a keyring service, with its Secret Service integration on'
+            'gtk3: GTK look for the libdecor title bar (GNOME)')
+provides=('keychain-manager')
+conflicts=('keychain-manager')
+_src="$url.git"
+if [ -n "$KM_SRC" ]; then _src="file://$KM_SRC"
+elif [ -d "$startdir/../../.git" ]; then _src="file://$(cd "$startdir/../.." && pwd)"; fi
+source=("keychain-manager::git+$_src#branch=main")
+sha256sums=('SKIP')
+
+pkgver() {
+  cd keychain-manager
+  printf "r%s.%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+}
+
+build() {
+  cd keychain-manager
+  CFLAGS_PKG="$CFLAGS" LDFLAGS_PKG="$LDFLAGS" ./build.sh package
+}
+
+package() {
+  cd keychain-manager
+  DESTDIR="$pkgdir" PREFIX=/usr ./install.sh
+}

@@ -1,0 +1,18 @@
+<!-- OBS (build.opensuse.org, home:AlexMedela/keychain-manager): takes the source from GitHub, named after the latest
+     release tag (v0.1.0 -> 0.1.0; the release workflow triggers it), makes the source tarball on the server (the build
+     roots of Debian / Ubuntu / Fedora have no obs-service-* tools) and builds the RPM (spec) and Debian (debian.*) packages. -->
+<services>
+  <service name="tar_scm">
+    <param name="url">https://github.com/AlexMedela/keychain-manager.git</param>
+    <param name="scm">git</param>
+    <param name="revision">main</param>
+    <param name="versionformat">@PARENT_TAG@</param>
+    <param name="versionrewrite-pattern">v(.*)</param>
+    <param name="filename">keychain-manager</param>
+  </service>
+  <service name="recompress">
+    <param name="file">*.tar</param>
+    <param name="compression">gz</param>
+  </service>
+  <service name="set_version"/>
+</services>

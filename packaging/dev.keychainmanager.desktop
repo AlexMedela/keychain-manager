@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Keychain Manager
+GenericName=Password Manager
+Comment=See and manage the passwords in your desktop's keyrings
+Exec=keychain-manager
+Icon=dev.keychainmanager
+Terminal=false
+Categories=Utility;Security;
+Keywords=keyring;keychain;passwords;secrets;wallet;kwallet;gnome-keyring;seahorse;
+StartupNotify=true
+StartupWMClass=dev.keychainmanager

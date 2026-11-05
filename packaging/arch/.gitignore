@@ -1,0 +1,5 @@
+src/
+pkg/
+keychain-manager/
+*.pkg.tar.zst
+*.log
