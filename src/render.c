@@ -7,7 +7,7 @@ static void draw_brand(void) {
     Rect r = A.r_brand;
     draw_rect(r.x, r.y, r.w, r.h, C(COL_SIDEBAR));
     draw_rect(r.x + r.w - 1, r.y, 1, r.h, C(COL_BORDER));
-    f32 lh = roundf(S(17)), lw = roundf(lh * 624.f / 456.f), lx = roundf(r.x + S(18)), ly = roundf(r.y + (r.h - lh) * 0.5f);
+    f32 lh = roundf(S(25)), lw = roundf(lh * 624.f / 456.f), lx = roundf(r.x + S(14)), ly = roundf(r.y + (r.h - lh) * 0.5f);
     Glyph *g = icon_glyph(lh < 48 ? ICON_LOGO_SMALL : ICON_LOGO, (int)lw); // square raster, logo centred in it
     if (g) draw_glyph(g, lx, roundf(ly - (lw - lh) * 0.5f), (Color){1, 1, 1, 1});
     Font *f = &A.font_brand;
