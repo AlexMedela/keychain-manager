@@ -31,7 +31,7 @@ static bool st_wait(StCond cond, void *ctx, int ms) {
     return cond(ctx);
 }
 
-static bool c_loaded(void *c) { (void)c; return A.loaded && A.ss_state != SS_CONNECTING; }
+static bool c_loaded(void *c) { (void)c; return A.loaded && !A.loading && A.ss_state != SS_CONNECTING; }
 static bool c_req(void *c) { return g_test_done_req == *(u32 *)c; }
 static bool c_revealed(void *c) { (void)c; return A.rev.p != NULL || !A.rev_item; }
 static bool c_item(void *c) { return item_by_path(c) != NULL; }
@@ -114,6 +114,15 @@ static void st_model(void) {
     CHECK(py && py->icon == ICON_PYTHON, "python keyring");
     Item *note = st_find_label("Notes: Recovery codes");
     CHECK(note && !strcmp(note->kind, "Note"), "note");
+    // a streamed reload's placeholders keep what an item already shows
+    if (gh) {
+        ItemInfo ii = {0};
+        ii.coll = strdup(gh->coll_path);
+        ii.partial = true;
+        item_take(gh, &ii);
+        free(ii.coll);
+        CHECK(!strcmp(gh->label, "github.com") && !gh->pending && gh->nattrs >= 3, "partial update keeps label + attributes");
+    }
     // view: all, one keyring, search, sort
     side_select(-1);
     int all = A.nview;

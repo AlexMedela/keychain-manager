@@ -317,7 +317,7 @@ static void draw_list(void) {
                 draw_icon_id(ix, iy, is, it->icon, it->locked ? 0.55f : 1.f);
                 if (it->locked) draw_lock_badge(ix, iy, is, rowbg);
                 f32 tx = x0 + S(32);
-                const char *lab = it->label[0] ? it->label : "(no name)";
+                const char *lab = it->pending ? "\xE2\x80\xA6" : it->label[0] ? it->label : "(no name)";
                 if (!it->label[0]) draw_text_fit(f, tx, text_y(f, y, rh), x1 - tx - S(8), lab, (int)strlen(lab), C(COL_TEXT_FAINT), 0);
                 else draw_text_marked(f, tx, text_y(f, y, rh), x1 - tx - S(8), lab, it->locked ? dc : tc, hc);
                 continue;
@@ -612,7 +612,13 @@ static void draw_status(void) {
     if (A.prompt_open) { snprintf(right, sizeof right, "Waiting for the keyring's password window\xE2\x80\xA6"); rc = COL_WARN; }
     else if (left_secs > 0) { snprintf(right, sizeof right, "Secret on the clipboard \xC2\xB7 cleared in %d s", left_secs); rc = COL_ACCENT; }
     else if (A.clip_owned) { snprintf(right, sizeof right, "Secret on the clipboard"); rc = COL_ACCENT; }
-    else if (pending_any()) snprintf(right, sizeof right, "Working\xE2\x80\xA6");
+    else if (A.loading) {
+        int got = 0;
+        for (int i = 0; i < A.nitems; i++) got += !A.items[i]->pending;
+        fmt_count(n1, (u64)got);
+        fmt_count(n2, (u64)A.nitems);
+        snprintf(right, sizeof right, "Reading items\xE2\x80\xA6 %s of %s", n1, n2);
+    } else if (pending_any()) snprintf(right, sizeof right, "Working\xE2\x80\xA6");
     else if (A.loaded && A.ss_state == SS_READY) {
         fmt_count(n1, (u64)A.nitems);
         snprintf(right, sizeof right, "%s item%s in %d keyring%s \xC2\xB7 listed in %.0f ms", n1, A.nitems == 1 ? "" : "s", A.ncolls,

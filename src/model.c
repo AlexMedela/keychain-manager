@@ -189,8 +189,18 @@ static void item_free(Item *it) {
     free(it);
 }
 
-// Fill (or refresh) an item from what the service said; takes the strings out of ii.
+// Fill (or refresh) an item from what the service said; takes the strings out of ii. A partial ii (only the path,
+// during a streamed load) keeps what the item already shows, or makes a placeholder row.
 static void item_take(Item *it, ItemInfo *ii) {
+    if (ii->partial) {
+        if (!it->coll_path || (ii->coll && strcmp(it->coll_path, ii->coll))) {
+            free(it->coll_path);
+            it->coll_path = ii->coll ? strdup(ii->coll) : strdup("");
+        }
+        if (!it->label) { it->label = strdup(""); it->pending = true; item_derive(it); }
+        return;
+    }
+    it->pending = false;
     free(it->label);
     it->label = ii->label ? ii->label : strdup("");
     ii->label = NULL;
@@ -432,7 +442,7 @@ static void model_replace_all(SsEvent *ev) {
     if (keep_side[0] && A.side_sel < 0 && !A.loaded) A.side_sel = -1; // (remembered keyring is gone: all items)
     colls_count();
     A.loaded = true;
-    A.load_ms = (f32)ev->ms;
+    A.loading = A.nitems > 0;
     view_rebuild();
 }
 
@@ -518,6 +528,9 @@ static void ss_event(SsEvent *ev) {
     case SE_SECRET: on_secret(ev); break;
     case SE_DONE: on_request_done(ev); break;
     case SE_PROMPT: A.prompt_open = ev->state; break;
+    case SE_LOADED:
+        if (!ev->path) { A.loading = false; A.load_ms = (f32)ev->ms; }
+        break;
     }
     ss_event_free(ev);
     A.redraw = true;

@@ -8,7 +8,9 @@ KWallet, KeePassXC...), reached through the freedesktop **Secret Service** D-Bus
 - `src/secret.c` - one thread owns the D-Bus connection. The UI hands it requests and gets events back
   (`main_post`), so the window never waits on the bus. Listing is pipelined (`src/dbus.c`): the properties of
   every item are requested at once and the replies collected together, so thousands of items take about one
-  round-trip instead of one per item. Secrets are only fetched when you show, copy or edit one.
+  round-trip instead of one per item. Loads are streamed: the keyrings and how many items they hold show at once
+  (~2 ms), the items' details follow in chunks (GNOME Keyring itself needs ~1 ms per item once a keyring holds
+  thousands; the first rows are readable after ~50 ms). Secrets are only fetched when you show, copy or edit one.
 - Change signals (`ItemCreated`, `ItemChanged`, `ItemDeleted`, `CollectionChanged`...) are gathered per loop
   round and fetched together; the list updates in place when other apps change the keyring. If the service restarts
   the app reconnects.

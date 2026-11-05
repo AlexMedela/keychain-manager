@@ -9,7 +9,7 @@ typedef struct {
     Attr *attrs;
     int nattrs;
     u64 created, modified;
-    bool locked;
+    bool locked, partial; // partial: only the path is known yet (its properties follow in SE_ITEMS)
 } ItemInfo;
 
 typedef struct {
@@ -30,6 +30,7 @@ enum {
     SE_SECRET,      // a secret that was asked for (req, path, secret, ctype, purpose)
     SE_DONE,        // a request finished (req, ok, msg)
     SE_PROMPT,      // the service shows (state 1) or closed (state 0) a password window
+    SE_LOADED,      // a (streamed) load finished (ms)
 };
 
 enum { SS_CONNECTING, SS_READY, SS_MISSING, SS_FAILED };
@@ -298,8 +299,9 @@ static char *read_default_alias(void) {
     return p ? p : strdup("/");
 }
 
-// Collections (all, or just `only`) with their items' properties.
-static CollInfo *load_colls(const char *only, int *nout, char *err, size_t cap) {
+// Collections (all, or just `only`) with their items: with their properties, or (props false) only their paths,
+// marked partial.
+static CollInfo *load_colls(const char *only, bool props, int *nout, char *err, size_t cap) {
     *nout = 0;
     char **paths = NULL;
     int np = 0;
@@ -336,7 +338,8 @@ static CollInfo *load_colls(const char *only, int *nout, char *err, size_t cap) 
             cp[i].items[j] = NULL;
             k++;
         }
-    fetch_items(all, total);
+    if (props) fetch_items(all, total);
+    else for (int i = 0; i < total; i++) all[i].partial = true;
     CollInfo *out = xcalloc((size_t)MAX(np, 1), sizeof *out);
     k = 0;
     for (int i = 0; i < np; i++) {
@@ -368,28 +371,53 @@ static void post_state(int state, const char *msg) {
     ss_post(ev);
 }
 
-static void reload_all(void) {
-    char err[256] = "";
-    u64 t0 = now_ns();
-    int n = 0;
-    CollInfo *c = load_colls(NULL, &n, err, sizeof err);
-    if (!c) { post_state(SS_FAILED, err); return; }
-    SsEvent *ev = ev_new(SE_COLLECTIONS);
-    ev->colls = c;
-    ev->ncolls = n;
-    ev->ms = (f64)(now_ns() - t0) / 1e6;
+static void post_items(ItemInfo *items, int n) {
+    SsEvent *ev = ev_new(SE_ITEMS);
+    ev->items = items;
+    ev->nitems = n;
     ss_post(ev);
 }
 
-static void reload_coll(const char *path) {
+// Load and post keyrings (all, or one): first the keyrings with their items' paths (the list shows how many there are
+// at once), then the items' properties in chunks. Some services answer property requests slowly with many items
+// (gnome-keyring: ~1 ms each at a few thousand), so rows fill in while the rest arrives instead of the window waiting.
+static void load_stream(const char *only) {
+    char err[256] = "";
+    u64 t0 = now_ns();
     int n = 0;
-    CollInfo *c = load_colls(path, &n, NULL, 0);
-    if (!c) return;
-    SsEvent *ev = ev_new(SE_COLLECTION);
+    CollInfo *c = load_colls(only, false, &n, err, sizeof err);
+    if (!c) { if (!only) post_state(SS_FAILED, err); return; }
+    int total = 0;
+    for (int i = 0; i < n; i++) total += c[i].nitems;
+    ItemInfo *todo = xcalloc((size_t)MAX(total, 1), sizeof *todo);
+    int k = 0;
+    for (int i = 0; i < n; i++)
+        for (int j = 0; j < c[i].nitems; j++) {
+            todo[k].path = strdup(c[i].items[j].path);
+            todo[k].coll = strdup(c[i].path);
+            k++;
+        }
+    SsEvent *ev = ev_new(only ? SE_COLLECTION : SE_COLLECTIONS);
     ev->colls = c;
     ev->ncolls = n;
     ss_post(ev);
+    for (int done = 0, chunk = 64; done < total; done += chunk, chunk = 256) { // (a small first chunk: the top rows)
+        int m = MIN(chunk, total - done);
+        ItemInfo *part = xcalloc((size_t)m, sizeof *part);
+        memcpy(part, todo + done, (size_t)m * sizeof *part);
+        fetch_items(part, m);
+        post_items(part, m);
+    }
+    free(todo);
+    SsEvent *fin = ev_new(SE_LOADED);
+    fin->ms = (f64)(now_ns() - t0) / 1e6;
+    fin->path = only ? strdup(only) : NULL;
+    ss_post(fin);
 }
+
+static void reload_all(void) { load_stream(NULL); }
+
+static void reload_coll(const char *path) { load_stream(path); }
 
 // (Re)connect: a session for secrets, which service it is, and everything it has.
 static bool ss_connect(void) {
@@ -494,13 +522,6 @@ static char *reply_prompt(DBusMessage *r) {
 }
 
 // --- requests (thread side) --------------------------------------------------------------
-
-static void post_items(ItemInfo *items, int n) {
-    SsEvent *ev = ev_new(SE_ITEMS);
-    ev->items = items;
-    ev->nitems = n;
-    ss_post(ev);
-}
 
 static void refresh_items(char **paths, int n) {
     if (!n) return;

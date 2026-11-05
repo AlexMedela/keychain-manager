@@ -146,7 +146,7 @@ typedef struct Item {
     Attr *attrs;
     int nattrs;
     u64 created, modified;
-    bool locked, sel, seen;
+    bool locked, sel, seen, pending; // pending: its properties are still on their way (streamed load)
     int coll; // index in A.colls (-1: none known)
     // derived from the schema and attributes (model.c)
     char account[128], where[192], kind[64];
@@ -238,7 +238,7 @@ static struct {
     // service + model
     int ss_state;
     char backend[64], ss_msg[256];
-    bool encrypted, loaded, prompt_open;
+    bool encrypted, loaded, loading, prompt_open; // loaded: keyrings known; loading: item details still arriving
     f32 load_ms, view_ms;
     Coll *colls;
     int ncolls;
@@ -1160,7 +1160,7 @@ static void frame(void) {
         if (attempt == 0 || !atlas_grow()) atlas_reset();
     }
     A.frame_ms = (f32)((now_ns() - t0) / 1e6);
-    if (A.screenshot && A.loaded && A.ss_state != SS_CONNECTING && !g_atlas_full && ++A.screenshot_frames >= 3) {
+    if (A.screenshot && A.loaded && !A.loading && A.ss_state != SS_CONNECTING && !g_atlas_full && ++A.screenshot_frames >= 3) {
         SDL_Surface *s = SDL_RenderReadPixels(A.ren, NULL);
         if (s) {
             SDL_SaveBMP(s, A.screenshot);
@@ -1189,11 +1189,15 @@ static void pump(void) {
 // --- benchmark (headless): how long the service takes to list everything --------------------------
 
 static int run_bench(void) {
-    u64 t0 = now_ns();
-    while (!A.loaded && now_ns() - t0 < 30000000000ull) {
-        SDL_WaitEventTimeout(NULL, 20);
+    u64 t0 = now_ns(), t_list = 0, t_rows = 0;
+    while ((!A.loaded || A.loading) && now_ns() - t0 < 600000000000ull) {
+        SDL_WaitEventTimeout(NULL, 2);
         main_drain();
+        if (A.loaded && !t_list) t_list = now_ns();
+        if (!t_rows && A.nview && !A.view[0]->pending) t_rows = now_ns(); // (pending rows sort last)
     }
+    if (t_list) printf("keyrings + item count shown after %.1f ms, first rows readable after %.1f ms\n", (f64)(t_list - t0) / 1e6,
+                       (f64)((t_rows ? t_rows : now_ns()) - t0) / 1e6);
     if (A.ss_state != SS_READY) { fprintf(stderr, "no keyring service: %s\n", A.ss_msg); return 1; }
     printf("%s (%s session): %d keyrings, %d items, listed in %.1f ms (ready %.1f ms after the window)\n", A.backend,
            A.encrypted ? "encrypted" : "plain", A.ncolls, A.nitems, A.load_ms, (f64)(now_ns() - t0) / 1e6);
@@ -1324,7 +1328,7 @@ int main(int argc, char **argv) {
         bool got;
         int wait = timers_wait_ms();
         if ((A.redraw || animating())) got = SDL_PollEvent(&e);
-        else if (!A.loaded || A.screenshot) got = SDL_WaitEventTimeout(&e, 30);
+        else if (!A.loaded || A.loading || A.screenshot) got = SDL_WaitEventTimeout(&e, 30);
         else if (wait >= 0) got = SDL_WaitEventTimeout(&e, MAX(wait, 1));
         else got = SDL_WaitEvent(&e);
         if (got) {
