@@ -13,6 +13,9 @@ command -v gnome-keyring-daemon >/dev/null || { echo "needs gnome-keyring-daemon
 tmp="$(mktemp -d /tmp/km-test.XXXXXX)"
 trap 'rm -rf "$tmp"' EXIT
 export KM_TMP="$tmp" KM_HERE="$here" KM_BIN="$bin"
+# (no display for anything the private bus starts: the app renders offscreen, and services it activates, such as
+# desktop portals, must not reach the real session's compositor)
+unset WAYLAND_DISPLAY DISPLAY
 exec dbus-run-session -- sh -c '
     set -e
     export HOME="$KM_TMP/home" XDG_DATA_HOME="$KM_TMP/data" XDG_CONFIG_HOME="$KM_TMP/config" XDG_RUNTIME_DIR="$KM_TMP/run"

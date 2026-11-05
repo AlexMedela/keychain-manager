@@ -6,6 +6,9 @@ Keychain Manager is a window onto the keyring service your desktop already runs;
 **GNOME Keyring** (GNOME, Xfce, Cinnamon, MATE, most tiling setups), **KWallet** (KDE Plasma; its Secret Service
 support is on by default since Plasma 5.97) or **KeePassXC** with *Settings > Secret Service Integration* on.
 
+If KWallet is installed with its Secret Service support switched off, the app says so and offers to turn it on
+(it sets \`apiEnabled\` in \`kwalletrc\` and restarts KWallet, after asking).
+
 Packages are built on the [openSUSE Build Service](https://build.opensuse.org/package/show/home:AlexMedela/keychain-manager)
 for x86_64 and ARM64, from the same repository as File Explorer's: if you added that one, just install the package.
 

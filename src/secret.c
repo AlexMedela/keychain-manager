@@ -33,7 +33,7 @@ enum {
     SE_LOADED,      // a (streamed) load finished (ms)
 };
 
-enum { SS_CONNECTING, SS_READY, SS_MISSING, SS_FAILED };
+enum { SS_CONNECTING, SS_READY, SS_MISSING, SS_FAILED, SS_KWALLET_OFF }; // KWALLET_OFF: KWallet without its Secret Service API
 
 typedef struct {
     int type, state, purpose;
@@ -113,6 +113,7 @@ enum {
     RQ_RENAME_COLL, // path, label
     RQ_SET_DEFAULT, // path
     RQ_DISMISS,     // close the service's password window
+    RQ_ENABLE_KWALLET, // turn on KWallet's Secret Service API (kwalletrc) and restart it
     RQ_TEST_CREATE, // self-tests only (gnome-keyring): keyring label + master password in secret, no prompt
     RQ_TEST_UNLOCK, // self-tests only: path + master password
 };
@@ -419,6 +420,31 @@ static void reload_all(void) { load_stream(NULL); }
 
 static void reload_coll(const char *path) { load_stream(path); }
 
+// Is a bus name running or startable? (KWallet's daemon, when nothing answers for org.freedesktop.secrets)
+static bool bus_name_known(const char *name) {
+    for (int pass = 0; pass < 2; pass++) {
+        DBusMessage *r = bus_call(dbus_message_new_method_call("org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                                               pass ? "ListActivatableNames" : "ListNames"), NULL, 0);
+        if (!r) continue;
+        DBusMessageIter it, a;
+        bool found = false;
+        if (dbus_message_iter_init(r, &it) && dbus_message_iter_get_arg_type(&it) == DBUS_TYPE_ARRAY) {
+            dbus_message_iter_recurse(&it, &a);
+            while (!found && dbus_message_iter_get_arg_type(&a) == DBUS_TYPE_STRING) {
+                const char *n = NULL;
+                dbus_message_iter_get_basic(&a, &n);
+                found = n && !strcmp(n, name);
+                dbus_message_iter_next(&a);
+            }
+        }
+        dbus_message_unref(r);
+        if (found) return true;
+    }
+    return false;
+}
+
+static int g_kwallet; // 6 or 5: that KWallet is there (its Secret Service API off), else 0
+
 // (Re)connect: a session for secrets, which service it is, and everything it has.
 static bool ss_connect(void) {
     char err[256] = "";
@@ -427,7 +453,9 @@ static bool ss_connect(void) {
     if (!session_open(err, sizeof err)) {
         bool missing = err_is(err, "ServiceUnknown") || err_is(err, "not provided by any .service") || err_is(err, "was not provided") ||
                        err_is(err, "NameHasNoOwner") || err_is(err, "No such name");
-        post_state(missing ? SS_MISSING : SS_FAILED, err);
+        g_kwallet = !missing ? 0 : bus_name_known("org.kde.kwalletd6") ? 6 : bus_name_known("org.kde.kwalletd5") ? 5 : 0;
+        if (g_kwallet) { snprintf(g_backend, sizeof g_backend, "KWallet"); post_state(SS_KWALLET_OFF, g_kwallet == 6 ? "6" : "5"); }
+        else post_state(missing ? SS_MISSING : SS_FAILED, err);
         return false;
     }
     detect_backend();
@@ -844,9 +872,44 @@ static void do_test(SsReq *r) {
     ss_post(ev);
 }
 
+static int run_wait(char *const argv[]) { // a program, waited for (SIGCHLD is ignored: wait until it's gone)
+    pid_t pid;
+    if (posix_spawnp(&pid, argv[0], NULL, spawn_attr(), argv, environ) != 0) return -1;
+    int st = 0;
+    if (waitpid(pid, &st, 0) == pid) return WIFEXITED(st) ? WEXITSTATUS(st) : -1;
+    return 0; // (reaped by the system: it ran)
+}
+
+// KWallet keeps secrets for the Secret Service API too, but it can be switched off ([org.freedesktop.secrets]
+// apiEnabled in kwalletrc). Switched on here only when the user asks (with a confirmation in the UI); KWallet then
+// restarts and registers org.freedesktop.secrets, which NameOwnerChanged picks up (ss_connect).
+static void do_enable_kwallet(SsReq *r) {
+    if (!g_kwallet) { post_done(r->id, false, "KWallet isn't installed"); return; }
+    char *cfg[] = {g_kwallet == 6 ? "kwriteconfig6" : "kwriteconfig5", "--file", "kwalletrc", "--group", "org.freedesktop.secrets",
+                   "--key", "apiEnabled", "--type", "bool", "true", NULL};
+    if (run_wait(cfg) != 0) { post_done(r->id, false, "Couldn't change KWallet's settings (%s)", cfg[0]); return; }
+    const char *svc = g_kwallet == 6 ? "org.kde.kwalletd6" : "org.kde.kwalletd5";
+    char *quit[] = {g_kwallet == 6 ? "kquitapp6" : "kquitapp5", g_kwallet == 6 ? "kwalletd6" : "kwalletd5", NULL};
+    run_wait(quit); // (fails when it wasn't running: fine)
+    DBusMessage *m = dbus_message_new_method_call("org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus", "StartServiceByName");
+    DBusMessageIter it;
+    dbus_message_iter_init_append(m, &it);
+    app_str(&it, svc);
+    dbus_uint32_t flags = 0;
+    dbus_message_iter_append_basic(&it, DBUS_TYPE_UINT32, &flags);
+    char err[256] = "";
+    DBusMessage *rep = bus_call(m, err, sizeof err);
+    if (rep) dbus_message_unref(rep);
+    for (int i = 0; i < 50 && !g_ready; i++) { // its secrets API registers a moment after it starts
+        usleep(100000);
+        if (bus_name_known(SS_NAME) && ss_connect()) break;
+    }
+    post_done(r->id, g_ready, g_ready ? "" : "KWallet didn't start its Secret Service API%s%s", err[0] ? ": " : "", err);
+}
+
 // Run one request (owns it).
 static void ss_run(SsReq *r) {
-    if (!g_ready && r->op != RQ_RELOAD) { post_done(r->id, false, "No keyring service"); req_free(r); return; }
+    if (!g_ready && r->op != RQ_RELOAD && r->op != RQ_ENABLE_KWALLET) { post_done(r->id, false, "No keyring service"); req_free(r); return; }
     char err[256] = "";
     switch (r->op) {
     case RQ_RELOAD: if (!g_ready) ss_connect(); else reload_all(); post_done(r->id, true, ""); break;
@@ -872,6 +935,7 @@ static void ss_run(SsReq *r) {
             if (rep) dbus_message_unref(rep);
         }
         break;
+    case RQ_ENABLE_KWALLET: do_enable_kwallet(r); break;
     case RQ_TEST_CREATE: case RQ_TEST_UNLOCK: do_test(r); break;
     }
     req_free(r);

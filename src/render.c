@@ -207,10 +207,11 @@ static void draw_sidebar(void) {
     // footer: which service answers, and how secrets travel
     Rect ft = A.r_side_footer;
     draw_rect(ft.x + S(12), ft.y, ft.w - S(24), 1, C(COL_BORDER));
-    u32 dot = A.ss_state == SS_READY ? COL_OK : A.ss_state == SS_CONNECTING ? COL_WARN : COL_DANGER;
-    const char *name = A.ss_state == SS_READY ? A.backend : A.ss_state == SS_CONNECTING ? "Connecting\xE2\x80\xA6" : "No keyring service";
+    u32 dot = A.ss_state == SS_READY ? COL_OK : A.ss_state == SS_CONNECTING || A.ss_state == SS_KWALLET_OFF ? COL_WARN : COL_DANGER;
+    const char *name = A.ss_state == SS_READY || A.ss_state == SS_KWALLET_OFF ? A.backend : A.ss_state == SS_CONNECTING ? "Connecting\xE2\x80\xA6" : "No keyring service";
     char sub[96];
     if (A.ss_state == SS_READY) snprintf(sub, sizeof sub, "%s", A.encrypted ? "Secret Service \xC2\xB7 encrypted" : "Secret Service \xC2\xB7 unencrypted");
+    else if (A.ss_state == SS_KWALLET_OFF) snprintf(sub, sizeof sub, "Secret Service off");
     else snprintf(sub, sizeof sub, "Secret Service");
     f32 dr = roundf(S(3.5f)), dx = ft.x + S(18), cy = ft.y + roundf(S(18));
     draw_rrect(dx, roundf(cy - dr), dr * 2, dr * 2, dr, C(dot));
@@ -382,6 +383,11 @@ static void draw_content(void) {
     if (A.nview) return;
     if (A.ss_state == SS_CONNECTING || (!A.loaded && A.ss_state != SS_MISSING)) {
         draw_empty(-1, "Opening the keyrings\xE2\x80\xA6", "", NULL, 0);
+    } else if (A.ss_state == SS_KWALLET_OFF) {
+        draw_empty(ICON_KEYRING, "KWallet's Secret Service support is off",
+                   "KWallet is installed, but its Secret Service API (the standard one this app reads keyrings through) is turned "
+                   "off. Turn it on and KWallet restarts with it; nothing in your wallets changes.",
+                   pending_any() ? NULL : "Turn it on", CMD_ENABLE_KWALLET);
     } else if (A.ss_state == SS_MISSING || A.ss_state == SS_FAILED) {
         char m[400];
         snprintf(m, sizeof m, "Nothing answers for org.freedesktop.secrets on this session. Start GNOME Keyring or KWallet, or turn on "

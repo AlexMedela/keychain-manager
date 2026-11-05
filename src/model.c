@@ -483,7 +483,7 @@ static void ss_event(SsEvent *ev) {
         snprintf(A.backend, sizeof A.backend, "%s", ev->backend);
         snprintf(A.ss_msg, sizeof A.ss_msg, "%s", ev->msg);
         if (ev->state == SS_READY) A.encrypted = !strcmp(ev->msg, "encrypted");
-        if (ev->state == SS_MISSING || ev->state == SS_FAILED) A.loaded = true; // (nothing more is coming)
+        if (ev->state == SS_MISSING || ev->state == SS_FAILED || ev->state == SS_KWALLET_OFF) A.loaded = true; // (nothing more is coming)
         break;
     case SE_COLLECTIONS: model_replace_all(ev); break;
     case SE_COLLECTION:

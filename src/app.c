@@ -728,7 +728,7 @@ enum {
     CMD_NEW_KEYRING, CMD_RENAME_KEYRING, CMD_DELETE_KEYRING, CMD_LOCK_KEYRING, CMD_UNLOCK_KEYRING, CMD_DEFAULT_KEYRING,
     CMD_LOCK_ALL, CMD_FIND, CMD_PALETTE, CMD_COMMANDS, CMD_INSPECTOR, CMD_OPTIONS, CMD_KEYS, CMD_RELOAD, CMD_SELECT_ALL,
     CMD_PREV_KEYRING, CMD_NEXT_KEYRING, CMD_ALL_ITEMS, CMD_ZOOM_IN, CMD_ZOOM_OUT, CMD_ZOOM_RESET, CMD_QUIT,
-    CMD_COPY_TO, CMD_MOVE_TO, CMD_SORT, CMD_TOGGLE_COL, CMD_OVERLAY, CMD_COUNT
+    CMD_COPY_TO, CMD_MOVE_TO, CMD_SORT, CMD_TOGGLE_COL, CMD_OVERLAY, CMD_ENABLE_KWALLET, CMD_COUNT
 };
 
 typedef struct { int cmd; const char *title; bool palette; } CmdDef;
@@ -773,6 +773,10 @@ static int target_coll(void) {
     for (int i = 0; i < A.ncolls; i++)
         if (!A.colls[i].locked) return i;
     return A.ncolls ? 0 : -1;
+}
+
+static void kwallet_enable_done(int b) {
+    if (b == 1) pending_add(ss_submit(ss_req(RQ_ENABLE_KWALLET)), PW_GENERIC, NULL);
 }
 
 static void run_command(int cmd, int arg) {
@@ -831,6 +835,14 @@ static void run_command(int cmd, int arg) {
         if (arg > COL_NAME && arg < COL_COUNT) { A.col_on[arg] = !A.col_on[arg]; A.settings_dirty = true; layout(); }
         break;
     case CMD_OVERLAY: A.show_overlay = !A.show_overlay; break;
+    case CMD_ENABLE_KWALLET: {
+        static const char *b[] = {"Cancel", "Turn it on"};
+        dialog_open("Turn on KWallet's Secret Service support?",
+                    "KWallet then also answers the standard API that this app (and libsecret apps such as browsers, Git or "
+                    "NetworkManager tools) use. This sets apiEnabled in kwalletrc and restarts KWallet; your wallets stay as they are.",
+                    b, 2, 1, 0, false, kwallet_enable_done);
+        break;
+    }
     }
 }
 
