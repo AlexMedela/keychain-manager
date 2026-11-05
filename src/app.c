@@ -289,7 +289,8 @@ static struct {
     // settings
     char theme_name[64], ui_font[64];
     int font_size, title_bar, clip_secs, idle_lock_min, win_w, win_h;
-    bool maximized, insp_on, alt_rows, smooth_scroll, show_overlay;
+    bool maximized, insp_on, insp_squeezed, alt_rows, smooth_scroll, show_overlay;
+    f32 insp_scroll, insp_content_h; // details panel: scrolled by, and how tall its content is
     f32 side_w, insp_w, colw[COL_COUNT];
     bool col_on[COL_COUNT];
     int sort_col;
@@ -324,6 +325,13 @@ static void layout(void) {
     f32 top = roundf(S(46)), status = roundf(S(26));
     A.side_w = CLAMP(A.side_w, 180.f, 420.f);
     f32 sw = roundf(S(A.side_w));
+    // small windows: the list keeps room first; the sidebar, then the details panel give way (the panel is left out
+    // when even its narrowest doesn't fit)
+    f32 list_min = roundf(S(280)), iw = A.insp_on ? roundf(MIN(S(MAX(A.insp_w, 260.f)), (W - sw) * 0.55f)) : 0;
+    if (W - sw - iw < list_min) sw = MAX(roundf(S(170)), W - iw - list_min);
+    if (iw > 0 && W - sw - iw < list_min) iw = MAX(roundf(S(250)), W - sw - list_min);
+    A.insp_squeezed = iw > 0 && W - sw - iw < list_min;
+    if (A.insp_squeezed) iw = 0;
     A.r_brand = (Rect){0, 0, sw, top};
     A.r_side = (Rect){0, top, sw, H - top - status};
     A.r_status = (Rect){0, H - status, W, status};
@@ -340,7 +348,6 @@ static void layout(void) {
     A.r_search = (Rect){roundf(bx - S(12) - sfw), roundf(by + S(1)), sfw, bs - roundf(S(2))};
     A.r_crumb = (Rect){sw + roundf(S(14)), 0, MAX(0.f, A.r_search.x - sw - S(28)), top};
     A.insp_w = CLAMP(A.insp_w, 260.f, 560.f);
-    f32 iw = A.insp_on ? roundf(MIN(S(A.insp_w), (W - sw) * 0.55f)) : 0;
     A.r_insp = (Rect){W - iw, top, iw, H - top - status};
     A.r_content = (Rect){sw, top, W - sw - iw, H - top - status};
     f32 hh = roundf(S(30));
@@ -358,6 +365,10 @@ static void layout(void) {
     f32 x0 = A.r_list.x + roundf(S(8)), x1 = A.r_track.x - roundf(S(4));
     f32 others = 0, avail = x1 - x0, namemin = MAX(roundf(S(160)), roundf(avail * 0.34f));
     for (int i = 1; i < A.ncols_vis; i++) others += roundf(S(A.colw[A.cols_vis[i]]));
+    while (A.ncols_vis > 1 && others * 0.7f > avail - namemin) { // too narrow: the last columns go before the rest squeeze
+        others -= roundf(S(A.colw[A.cols_vis[A.ncols_vis - 1]]));
+        A.ncols_vis--;
+    }
     f32 k = others > avail - namemin && others > 0 ? MAX(0.f, avail - namemin) / others : 1.f; // narrow: all shrink
     f32 namew = MAX(namemin, avail - others * k);
     f32 x = x0;
@@ -810,7 +821,12 @@ static void run_command(int cmd, int arg) {
     case CMD_FIND: A.focus = FOCUS_SEARCH; A.search.anchor = 0; A.search.caret = (int)strlen(A.search.buf); break;
     case CMD_PALETTE: palette_open(false); break;
     case CMD_COMMANDS: palette_open(true); break;
-    case CMD_INSPECTOR: A.insp_on = !A.insp_on; A.settings_dirty = true; layout(); break;
+    case CMD_INSPECTOR:
+        A.insp_on = !A.insp_on;
+        A.settings_dirty = true;
+        layout();
+        if (A.insp_on && A.insp_squeezed) toast("The window is too narrow for the details panel");
+        break;
     case CMD_OPTIONS: sheet_open_options(0); break;
     case CMD_KEYS: sheet_open_options(1); break;
     case CMD_RELOAD: ss_submit(ss_req(RQ_RELOAD)); break;
@@ -1278,6 +1294,7 @@ int main(int argc, char **argv) {
     pool_init();
     ss_start(); // (the keyring service starts answering while the window comes up)
 
+    if (A.screenshot && getenv("KM_SHOT_SIZE")) sscanf(getenv("KM_SHOT_SIZE"), "%dx%d", &A.win_w, &A.win_h); // (checks at other sizes)
     A.csd = titlebar_wanted(); // (borderless from the start: no system title bar flashing up first)
     A.win = SDL_CreateWindow(APP_NAME, A.win_w, A.win_h,
                              SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | (A.maximized ? SDL_WINDOW_MAXIMIZED : 0) |

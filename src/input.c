@@ -369,6 +369,7 @@ static void on_wheel(SDL_MouseWheelEvent *w) {
         return;
     }
     if (SDL_GetModState() & SDL_KMOD_CTRL) { zoom_set(A.zoom + (dy > 0 ? 0.1f : -0.1f)); return; }
+    if (A.insp_on && in_rect(A.r_insp, A.mx, A.my)) { A.insp_scroll -= dy * S(48); return; }
     if (in_rect(A.r_list, A.mx, A.my) || in_rect(A.r_header, A.mx, A.my)) {
         A.scroll_target = CLAMP(A.scroll_target - (f64)dy * A.row_h * 3, 0.0, max_scroll());
         if (!A.smooth_scroll) A.scroll = A.scroll_target;

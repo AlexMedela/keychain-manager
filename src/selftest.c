@@ -417,6 +417,21 @@ static void st_ui(void) {
     sheet_open_name(-1);
     SHOT("new-keyring");
     sheet_close();
+    // small windows: the list keeps room, the details panel fits (narrower) or steps aside, and scrolls
+    int ow = A.W, oh = A.H;
+    A.insp_on = true;
+    A.W = (int)roundf(S(720));
+    A.H = (int)roundf(S(420));
+    layout();
+    CHECK(A.r_insp.w > 0 && A.r_list.w >= S(280) - 1, "720x420: list and details panel both fit");
+    frame();
+    CHECK(A.insp_content_h > A.r_insp.h, "details taller than the panel there: it scrolls");
+    A.W = (int)roundf(S(560));
+    layout();
+    CHECK(A.r_insp.w == 0 && A.insp_squeezed && A.r_list.w >= S(280) - 1, "too narrow: the panel steps aside");
+    A.W = ow;
+    A.H = oh;
+    layout();
     // shortcuts: parse, label, rebind, keep in settings
     Combo c;
     CHECK(combo_parse("Ctrl+Shift+C", &c) && c.key == SDLK_C && c.mods == (KM_CTRL | KM_SHIFT), "parse a shortcut");

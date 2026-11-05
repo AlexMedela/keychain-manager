@@ -90,7 +90,7 @@ static void draw_topbar(void) {
         f32 is = roundf(S(18)), iy = roundf(cr.y + (cr.h - is) * 0.5f);
         draw_icon_id(cr.x, iy, is, A.side_sel >= 0 ? ICON_KEYRING : ICON_ALL_ITEMS, 1.f);
         f32 tx = cr.x + is + roundf(S(9));
-        f32 nw = MIN(text_width(f, name, (int)strlen(name)), cr.x + cr.w - tx - S(60));
+        f32 nw = MIN(text_width(f, name, (int)strlen(name)), cr.x + cr.w - tx); // (narrow: the count goes first, then the name elides)
         draw_text_fit(f, tx, text_y(f, cr.y, cr.h), nw + 1, name, (int)strlen(name), C(COL_TEXT), 0);
         char n[48];
         fmt_count(n, (u64)A.nview);
@@ -439,13 +439,16 @@ static Rect insp_row(f32 x, f32 *y, f32 w, const char *label, const char *value,
 
 static void draw_inspector(void) {
     insp_btn_reveal = insp_btn_copy = insp_btn_unlock = insp_btn_edit = insp_btn_delete = insp_btn_acc = insp_btn_where = (Rect){0, 0, 0, 0};
-    if (!A.insp_on) return;
+    if (!A.insp_on || A.r_insp.w <= 0) return;
     Rect r = A.r_insp;
     draw_rect(r.x, r.y, r.w, r.h, C(COL_PREVIEW_BG));
     draw_rect(r.x, r.y, 1, r.h, C(A.drag == DRAG_INSPECTOR || (A.mouse_in && fabsf(A.mx - r.x) <= S(4) && A.my > r.y) ? COL_ACCENT : COL_BORDER));
     Item *it = cursor_item();
     Font *f = &A.font, *fs = &A.font_small, *bf = &A.font_brand;
-    f32 pad = roundf(S(20)), x = r.x + pad, w = r.w - pad * 2, y = r.y + pad;
+    static char shown_path[512];
+    if (strcmp(shown_path, it ? it->path : "")) { snprintf(shown_path, sizeof shown_path, "%s", it ? it->path : ""); A.insp_scroll = 0; }
+    A.insp_scroll = CLAMP(A.insp_scroll, 0.f, MAX(0.f, A.insp_content_h - r.h));
+    f32 pad = roundf(S(20)), x = r.x + pad, w = r.w - pad * 2, y = r.y + pad - roundf(A.insp_scroll), y_top = y;
     if (!it) {
         const char *m = A.nview ? "Pick an item to see its details." : "";
         draw_text_fit(fs, x, r.y + r.h * 0.4f, w, m, (int)strlen(m), C(COL_TEXT_FAINT), 2);
@@ -581,7 +584,7 @@ static void draw_inspector(void) {
         f32 kw = 0;
         for (int i = 0; i < it->nattrs; i++) kw = MAX(kw, text_width(fs, it->attrs[i].k, (int)strlen(it->attrs[i].k)));
         kw = MIN(kw + S(12), w * 0.45f);
-        for (int i = 0; i < it->nattrs && y < r.y + r.h - S(80); i++) {
+        for (int i = 0; i < it->nattrs; i++) {
             draw_text_fit(fs, x + S(2), text_y(fs, y, ah), kw - S(8), it->attrs[i].k, (int)strlen(it->attrs[i].k), C(COL_TEXT_FAINT), 0);
             draw_text_fit(mf, x + kw, text_y(mf, y, ah), w - kw, it->attrs[i].v, (int)strlen(it->attrs[i].v), C(COL_TEXT2), 0);
             y += ah;
@@ -594,10 +597,15 @@ static void draw_inspector(void) {
     Rect eb = {x, by, ew, bh}, db = {x + ew + S(8), by, dw, bh};
     draw_button(eb, "Edit", false, false, !it->locked);
     if (!it->locked) insp_btn_edit = eb;
-    bool dh = hovering(db);
-    draw_rrect(db.x, db.y, db.w, db.h, S(7), C(dh ? rgb_mix(COL_CONTROL, COL_DANGER, 0.25f) : COL_CONTROL));
-    draw_text_fit(f, db.x, text_y(f, db.y, db.h), db.w, "Delete", 6, C(COL_DANGER_TEXT), 2);
+    draw_button(db, "Delete", true, true, true); // (a plain red, like the confirmation's button)
     insp_btn_delete = db;
+    if (db.y + db.h > r.y + r.h) insp_btn_edit = insp_btn_delete = (Rect){0, 0, 0, 0}; // (scrolled out of the panel)
+    (void)f;
+    A.insp_content_h = by + bh + pad - y_top + pad;
+    if (A.insp_content_h > r.h) { // scroll indicator
+        f32 th = MAX(S(30), r.h * r.h / A.insp_content_h), ty = r.y + (r.h - th) * (A.insp_scroll / (A.insp_content_h - r.h));
+        draw_rrect(r.x + r.w - S(7), ty + S(2), S(4), th - S(4), S(2), C(COL_SCROLL));
+    }
     draw_clip_pop(cs);
 }
 
@@ -695,8 +703,8 @@ static void draw_menu(void) {
             draw_rect(r.x + S(10), roundf(yy + h * 0.5f), r.w - S(20), 1, C(COL_POPUP_BORDER));
         } else {
             bool hv = i == m->hover && it->enabled;
-            if (hv) draw_rrect(r.x + S(5), yy, r.w - S(10), h, S(6), C(it->danger ? rgb_mix(COL_POPUP, COL_DANGER, 0.3f) : COL_SEL_FOCUS));
-            Color tc = !it->enabled ? C(COL_TEXT_FAINT) : it->danger ? C(COL_DANGER_TEXT) : C(COL_TEXT);
+            if (hv) draw_rrect(r.x + S(5), yy, r.w - S(10), h, S(6), C(it->danger ? COL_DANGER_FILL : COL_SEL_FOCUS));
+            Color tc = !it->enabled ? C(COL_TEXT_FAINT) : it->danger ? C(hv ? 0xFFFFFF : COL_DANGER_RED) : C(COL_TEXT);
             draw_text(f, r.x + S(16), text_y(f, yy, h), it->label, (int)strlen(it->label), tc);
             int sl = (int)strlen(it->shortcut);
             f32 sw = text_width(fs, it->shortcut, sl);

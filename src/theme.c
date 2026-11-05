@@ -147,6 +147,7 @@ static const struct { const char *name; u32 rgb; } g_accents[] = {
 #define COL_DANGER        (T.danger)
 #define COL_DANGER_TEXT   (T.danger_text)
 #define COL_DANGER_FILL   0xD93636u // destructive buttons: a plain red (the theme dangers lean pink)
+#define COL_DANGER_RED    (theme_is_light(&T) ? 0xC92A2Au : 0xF04B4Bu) // destructive menu entries: red text that reads on the theme
 #define COL_WARN          (T.warn)
 #define COL_OK            (T.ok)
 #define COL_PREVIEW_BG    (T.preview_bg)
