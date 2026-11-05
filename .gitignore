@@ -1,0 +1,5 @@
+build/
+*.bmp
+__pycache__/
+AppDir/
+dist/
