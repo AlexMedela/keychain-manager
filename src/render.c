@@ -15,6 +15,17 @@ static void draw_brand(void) {
     draw_text_fit(f, tx, text_y(f, r.y, r.h), r.x + r.w - tx - S(8), APP_LABEL, (int)strlen(APP_LABEL), C(COL_TEXT), 0);
 }
 
+// Square outline of side s and line t on whole pixels.
+static void draw_box(f32 x, f32 y, f32 s, f32 t, Color c) {
+    x = roundf(x);
+    y = roundf(y);
+    s = roundf(s);
+    draw_rect(x, y, s, t, c);
+    draw_rect(x, y + s - t, s, t, c);
+    draw_rect(x, y + t, t, s - 2 * t, c);
+    draw_rect(x + s - t, y + t, t, s - 2 * t, c);
+}
+
 // Own title bar: minimise / maximise / close at the top right (Windows-sized, red close on hover), and a hairline
 // round the window (borderless windows get no shadow from some compositors).
 static void draw_window_controls(void) {
@@ -28,12 +39,12 @@ static void draw_window_controls(void) {
         Color ic = hover ? (i == 2 ? (Color){1, 1, 1, 1} : C(COL_TEXT)) : C(COL_TEXT2);
         f32 cx = roundf(b.x + b.w * 0.5f), cy = roundf(b.y + b.h * 0.5f), x0 = cx - is * 0.5f, y0 = cy - is * 0.5f;
         if (i == 0) draw_rect(x0, cy, is, lt, ic);
-        else if (i == 1 && !max) draw_rrect_outline(x0, y0, is, is, S(1.5f), lt, ic);
+        else if (i == 1 && !max) draw_box(x0, y0, is, lt, ic); // a plain square, whole pixels (no rounded, blurred corners)
         else if (i == 1) { // restore: two overlapping windows
             f32 o = roundf(S(2)), w2 = is - o;
             draw_rect(x0 + o, y0, w2, lt, ic);
             draw_rect(x0 + is - lt, y0, lt, w2, ic);
-            draw_rrect_outline(x0, y0 + o, w2, w2, S(1.5f), lt, ic);
+            draw_box(x0, y0 + o, w2, lt, ic);
         } else draw_cross(cx, cy, is, lt, ic);
     }
     if (!max) {
